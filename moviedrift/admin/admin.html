@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>MovieDrift Admin</title>
+<link rel="icon" href="img/logo.png" type="image/png">
+<style>
+:root { --bg:#000; --card-bg:#0a0a0a; --accent:#00ff66; --text:#eee; --muted:#777; }
+body { background:var(--bg); color:var(--text); font-family:Arial,sans-serif; margin:0; }
+header { background:#111; color:var(--accent); padding:15px 20px; font-size:24px; font-weight:bold; }
+main { padding:20px; display:grid; grid-template-columns:300px 1fr; gap:20px; flex-wrap:wrap; }
+form { background:var(--card-bg); padding:15px; border-radius:8px; display:flex; flex-direction:column; gap:10px; }
+input, textarea, select, button { padding:8px; border:1px solid var(--accent); border-radius:5px; background:#111; color:var(--text); }
+button { background:var(--accent); color:#000; font-weight:bold; cursor:pointer; }
+button:hover { opacity:0.85; }
+table { width:100%; border-collapse:collapse; background:var(--card-bg); border-radius:8px; overflow:hidden; }
+th, td { border-bottom:1px solid #222; padding:8px; text-align:left; vertical-align:middle; }
+th { color:var(--accent); background:#111; }
+tr:hover { background:#181818; }
+.actions button { margin-right:6px; padding:4px 8px; border:none; border-radius:4px; cursor:pointer; font-size:0.8rem; }
+.actions .edit { background:#00cc88; color:#000; }
+.actions .delete { background:#e63946; color:#fff; }
+.actions .episodes { background:#007bff; color:#fff; }
+.search-bar { margin-bottom:10px; width:100%; }
+.modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:2000; }
+.modal .modal-content { width:95%; max-width:1000px; max-height:90vh; overflow:auto; background:var(--card-bg); padding:16px; border-radius:8px; }
+.modal .close { float:right; cursor:pointer; color:var(--accent); font-size:20px; }
+.small-btn { padding:6px 8px; border-radius:6px; cursor:pointer; border:none; }
+.episode-row { display:flex; gap:8px; align-items:center; }
+.episode-row img { width:80px; height:45px; object-fit:cover; border-radius:4px; }
+.field-row { display:flex; gap:8px; }
+.note { font-size:0.85rem; color:var(--muted); margin-top:6px; }
+</style>
+</head>
+<body>
+<header>🎬 MovieDrift Admin Dashboard</header>
+
+<main>
+  <!-- ADD / EDIT MOVIE FORM -->
+  <form id="movieForm">
+    <h3>Add / Edit Movie / Series</h3>
+    <input type="hidden" id="movieId">
+    <input id="title" placeholder="Title" required>
+    <input id="year" placeholder="Year">
+    <input id="type" placeholder="Type (Movie, Series, Animation)" required>
+    <input id="genres" placeholder="Genres (comma separated)">
+    <input id="poster" placeholder="Poster URL">
+    <input id="trailer" placeholder="Trailer URL">
+    <input id="fileUrl" placeholder="Movie / Stream URL">
+    <textarea id="description" placeholder="Description"></textarea>
+    <input id="rating" type="number" placeholder="Rating (0-10)" min="0" max="10" step="0.1">
+    <div style="display:flex; gap:8px;">
+      <button type="submit">Save Movie</button>
+      <button type="button" id="clearForm">Clear</button>
+    </div>
+    <p class="note">Note: use Type = <strong>Series</strong> to enable episodes management.</p>
+  </form>
+
+  <!-- MOVIES TABLE -->
+  <div>
+    <h3>🎞 All Movies / Series</h3>
+    <input id="searchInput" class="search-bar" placeholder="🔍 Search movies by title...">
+    <div style="margin-bottom:10px;">
+      <button id="deleteSelectedBtn" onclick="deleteSelectedMovies()" disabled>🗑 Delete Selected</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
+          <th>Title</th>
+          <th>Year</th>
+          <th>Type</th>
+          <th>Genres</th>
+          <th>Rating</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="movieTable"></tbody>
+    </table>
+  </div>
+
+  <!-- -------------------- REGISTERED USERS -------------------- -->
+<div style="margin-top:20px;">
+  <h3>👥 Registered Users</h3>
+
+  <form id="registerForm" style="margin-bottom:10px;">
+    <h4>Register New User</h4>
+
+    <input id="regEmail" placeholder="Email" required>
+    <input id="regUsername" placeholder="Username" required>
+    <input id="regPassword" type="password" placeholder="Password (min 6 chars)" required>
+
+    <!-- NEW: Devices Allowed -->
+    <input id="regDevices" type="number" min="1" value="1"
+           placeholder="Devices Allowed" required>
+
+    <button type="submit">Register User</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Email</th>
+        <th>Username</th>
+        <th>Password</th>
+        <th>Registered At</th>
+        <th>Subscription Expiry</th>
+        <th>Devices Allowed</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+
+    <tbody id="usersTable"></tbody>
+  </table>
+</div>
+</main>
+<!-- Episodes Modal -->
+<div id="episodesModal" class="modal" aria-hidden="true">
+  <div class="modal-content">
+    <span class="close" onclick="closeModal('episodesModal')">&times;</span>
+    <h2 id="episodesModalTitle">Episodes</h2>
+
+    <!-- Episode Add/Edit Form -->
+  <form id="episodeForm" style="margin-bottom:12px;">
+  
+  <input type="hidden" id="episodeId">
+  <input type="hidden" id="episodeSeriesId">
+
+  <!-- Season Selector -->
+  <div class="field-row">
+    <select id="epSeason" style="width:160px;">
+      <option value="">Select Season</option>
+      <option value="1">Season 1</option>
+      <option value="2">Season 2</option>
+      <option value="3">Season 3</option>
+    </select>
+
+    <input id="newSeasonInput" 
+           placeholder="Add new season (e.g. 4)" 
+           style="flex:1;">
+  </div>
+
+  <div class="field-row">
+    <input id="epNumber" placeholder="Episode Number" style="width:120px;">
+    <input id="epTitle" placeholder="Episode Title" style="flex:1;">
+  </div>
+
+  <input id="epFileUrl" placeholder="Episode File URL (mp4, mkv, webm...)">
+
+  <div class="field-row" style="margin-top:8px;">
+    <input id="epPoster" placeholder="Episode Poster URL">
+    <input id="epRuntime" placeholder="Runtime (e.g. 24m)" style="width:140px;">
+  </div>
+
+  <textarea id="epDescription"
+            placeholder="Episode Description"
+            style="margin-top:8px;"></textarea>
+
+  <div style="margin-top:8px;">
+    <button type="submit">Save Episode</button>
+    <button type="button" id="clearEpisodeForm">Clear</button>
+  </div>
+
+</form>
+
+
+    <h3>Episode List</h3>
+    <div id="episodesListContainer"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { 
+  getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, 
+  onSnapshot, query, where, orderBy 
+} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+
+// =======================================================
+// 🔥 FIREBASE CONFIG
+// =======================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyD2gkLs17Oa_dxIGu1FpOaDKAvGZwj_EFA",
+  authDomain: "gamers-65b44.firebaseapp.com",
+  projectId: "gamers-65b44",
+  storageBucket: "gamers-65b44.firebasestorage.app",
+  messagingSenderId: "97331968745",
+  appId: "1:97331968745:web:a93ff0bd2c383800dcce78",
+  measurementId: "G-JPPCZ3M4G2"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+
+
+// =======================================================
+// 🔥 COLLECTION REFERENCES
+// =======================================================
+const moviesRef = collection(db, "movies");
+const usersRef  = collection(db, "users");
+
+
+// =======================================================
+// 🔧 ELEMENTS
+// =======================================================
+const movieForm        = document.getElementById("movieForm");
+const movieTable       = document.getElementById("movieTable");
+const searchInput      = document.getElementById("searchInput");
+const deleteSelectedBtn = document.getElementById("deleteSelectedBtn");
+const selectAllCheckbox = document.getElementById("selectAll");
+const episodesModal     = document.getElementById("episodesModal");
+const episodesModalTitle = document.getElementById("episodesModalTitle");
+const episodesListContainer = document.getElementById("episodesListContainer");
+const episodeForm       = document.getElementById("episodeForm");
+const clearEpisodeFormBtn = document.getElementById("clearEpisodeForm");
+const usersTable          = document.getElementById("usersTable");
+const registerForm        = document.getElementById("registerForm");
+
+
+// =======================================================
+// 🔧 GLOBAL STATES
+// =======================================================
+let allMovies = [];
+let selectedMovies = new Set();
+let currentSeriesId = null;
+let episodesUnsubscribe = null;
+let allUsers = [];
+
+
+
+// =======================================================
+// 🛡 UTILS
+// =======================================================
+function escapeHtml(str){
+  if(!str) return "";
+  return str.replace(/[&<>"']/g, s=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[s]);
+}
+function escapeJs(str){ 
+  if(!str) return ""; 
+  return str.replace(/'/g, "\\'").replace(/"/g,'\\"'); 
+}
+
+
+
+// =======================================================
+// 🎬 MOVIE TABLE RENDERING
+// =======================================================
+function renderMovies(list) {
+  movieTable.innerHTML = "";
+  list.forEach(m => {
+    const checked = selectedMovies.has(m.id) ? "checked" : "";
+    const ratingDisplay = m.rating ? `${m.rating} (${(m.rating*10).toFixed(0)}%)` : "-";
+
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input type="checkbox" ${checked} onchange="toggleMovieSelection('${m.id}')"></td>
+      <td>${escapeHtml(m.title)}</td>
+      <td>${m.year || ""}</td>
+      <td>${m.type || ""}</td>
+      <td>${m.genres ? escapeHtml(m.genres.join(", ")) : ""}</td>
+      <td>${ratingDisplay}</td>
+      <td class="actions">
+        <button class="edit" onclick='editMovie("${m.id}")'>Edit</button>
+        <button class="episodes" onclick='openEpisodes("${m.id}", "${escapeJs(m.title)}")' ${m.type !== "Series" ? "title='Not a series'": ""}>Manage Episodes</button>
+        <button class="delete" onclick='deleteMovie("${m.id}")'>Delete</button>
+      </td>`;
+    movieTable.appendChild(row);
+  });
+
+  updateDeleteButtonState();
+}
+
+window.toggleMovieSelection = id => {
+  if (selectedMovies.has(id)) selectedMovies.delete(id);
+  else selectedMovies.add(id);
+  updateDeleteButtonState();
+};
+
+window.toggleSelectAll = checkbox => {
+  if (checkbox.checked) allMovies.forEach(m => selectedMovies.add(m.id));
+  else selectedMovies.clear();
+  renderMovies(allMovies);
+};
+
+function updateDeleteButtonState() {
+  deleteSelectedBtn.disabled = selectedMovies.size === 0;
+  deleteSelectedBtn.textContent = selectedMovies.size 
+    ? `🗑 Delete Selected (${selectedMovies.size})` 
+    : "🗑 Delete Selected";
+}
+
+window.deleteSelectedMovies = async () => {
+  if (selectedMovies.size === 0) return alert("No movies selected.");
+  if (!confirm(`Delete ${selectedMovies.size} selected movie(s)?`)) return;
+
+  for (const id of selectedMovies) await deleteDoc(doc(db, "movies", id));
+
+  selectedMovies.clear();
+  updateDeleteButtonState();
+  alert("✅ Selected movies deleted successfully!");
+};
+
+window.deleteMovie = async id => {
+  if (!confirm("Delete this movie?")) return;
+  await deleteDoc(doc(db, "movies", id));
+  alert("🗑 Movie deleted");
+};
+
+onSnapshot(query(moviesRef, orderBy("createdAt", "desc")), snapshot => {
+  allMovies = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderMovies(allMovies);
+});
+
+searchInput.addEventListener("input", e => {
+  const term = e.target.value.toLowerCase();
+  const filtered = allMovies.filter(m => (m.title || "").toLowerCase().includes(term));
+  renderMovies(filtered);
+});
+
+
+
+// =======================================================
+// ✏ MOVIE FORM
+// =======================================================
+/* ---------------- MOVIES ---------------- */
+movieForm.addEventListener("submit", async e => {
+  e.preventDefault();
+
+  const id = movieId.value;
+
+  // Prepare movie data
+  const movieData = {
+    title: title.value.trim(),
+    year: year.value.trim(),
+    type: type.value.trim(),
+    genres: genres.value ? genres.value.split(",").map(g => g.trim()).filter(Boolean) : [],
+    poster: poster.value.trim(),
+    trailer: trailer.value.trim(),
+    fileUrl: fileUrl.value.trim(),
+    description: description.value.trim(),
+    rating: parseFloat(rating.value) || null,
+  };
+
+  if (id) {
+    // Update movie WITHOUT changing createdAt
+    await updateDoc(doc(db, "movies", id), movieData);
+    alert("✅ Movie updated!");
+  } else {
+    // Add new movie WITH createdAt
+    movieData.createdAt = Date.now();
+    await addDoc(moviesRef, movieData);
+    alert("✅ Movie added!");
+  }
+
+  movieForm.reset();
+  movieId.value = "";
+});
+
+document.getElementById("clearForm").addEventListener("click", () => {
+  movieForm.reset();
+  movieId.value = "";
+});
+
+// Load movie into form
+window.editMovie = async id => {
+  const docs = await getDocs(moviesRef);
+  const movieDoc = docs.docs.find(d => d.id === id);
+  if (!movieDoc) return alert("Movie not found!");
+  const m = movieDoc.data();
+
+  movieId.value = id;
+  title.value = m.title || "";
+  year.value = m.year || "";
+  type.value = m.type || "";
+  genres.value = m.genres ? m.genres.join(", ") : "";
+  poster.value = m.poster || "";
+  trailer.value = m.trailer || "";
+  fileUrl.value = m.fileUrl || "";
+  description.value = m.description || "";
+  rating.value = m.rating || "";
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+
+
+/* ---------------- EPISODES (SERIES) ---------------- */
+window.openEpisodes = (seriesId, title) => {
+  if (!seriesId) return alert("Missing series id");
+
+  currentSeriesId = seriesId;
+  episodesModalTitle.innerText = `Episodes — ${title}`;
+  document.getElementById("episodeSeriesId").value = seriesId;
+
+  episodesListContainer.innerHTML = "<p>Loading episodes...</p>";
+
+  if (typeof episodesUnsubscribe === "function") episodesUnsubscribe();
+
+  const episodesColl = collection(db, "movies", seriesId, "episodes");
+  const q = query(episodesColl, orderBy("epNumber", "asc"));
+
+  episodesUnsubscribe = onSnapshot(q, snapshot => {
+    const episodes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderEpisodes(episodes);
+  });
+
+  episodesModal.style.display = "flex";
+};
+
+function renderEpisodes(episodes) {
+  episodesListContainer.innerHTML = "";
+  if (!episodes.length) {
+    episodesListContainer.innerHTML = "<p>No episodes yet.</p>";
+    return;
+  }
+
+  episodes.forEach(ep => {
+    const div = document.createElement("div");
+    div.className = "episode-row";
+    div.style.marginBottom = "10px";
+
+    div.innerHTML = `
+      <div style="width:90%; display:flex; gap:10px; align-items:center;">
+        <img src="${ep.poster || ''}" onerror="this.style.display='none'">
+        <div style="flex:1;">
+          <strong>EP ${ep.epNumber || ''} — ${escapeHtml(ep.title || '')}</strong>
+          <div style="font-size:0.9rem;color:var(--muted)">
+            ${escapeHtml(ep.runtime || '')} • ${escapeHtml(ep.description || '')}
+          </div>
+          <div style="margin-top:6px;">
+            <a href="${ep.fileUrl || '#'}" target="_blank" style="color:var(--accent); text-decoration:underline;">
+              Open file
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div style="width:10%;display:flex;flex-direction:column;gap:6px;">
+        <button class="small-btn" onclick='editEpisode("${currentSeriesId}","${ep.id}")'>Edit</button>
+        <button class="small-btn" style="background:#e63946;color:white;" onclick='deleteEpisode("${currentSeriesId}","${ep.id}")'>Delete</button>
+      </div>
+    `;
+
+    episodesListContainer.appendChild(div);
+  });
+}
+
+episodeForm.addEventListener("submit", async e => {
+  e.preventDefault();
+
+  const seriesId = document.getElementById("episodeSeriesId").value;
+  const epId     = document.getElementById("episodeId").value;
+
+  // ✅ SEASON (added only)
+  const seasonSelect = document.getElementById("epSeason");
+  const newSeasonInput = document.getElementById("newSeasonInput");
+  const season =
+    newSeasonInput?.value.trim()
+      ? newSeasonInput.value.trim()
+      : seasonSelect?.value || "";
+
+  const epData = {
+    season, // ✅ added
+    epNumber: parseInt(document.getElementById("epNumber").value) || null,
+    title: document.getElementById("epTitle").value.trim(),
+    fileUrl: document.getElementById("epFileUrl").value.trim(),
+    description: document.getElementById("epDescription").value.trim(),
+    poster: document.getElementById("epPoster").value.trim(),
+    runtime: document.getElementById("epRuntime").value.trim(),
+    updatedAt: Date.now() // Only tracks edits, doesn't affect order of new episodes
+  };
+
+  const episodesCollRef = collection(db, "movies", seriesId, "episodes");
+
+  if (epId) {
+    await updateDoc(doc(episodesCollRef, epId), epData);
+  } else {
+    await addDoc(episodesCollRef, epData);
+  }
+
+  episodeForm.reset();
+  document.getElementById("episodeId").value = "";
+});
+
+clearEpisodeFormBtn.addEventListener("click", () => {
+  episodeForm.reset();
+  document.getElementById("episodeId").value = "";
+});
+
+window.editEpisode = async (seriesId, epId) => {
+  const epDoc = await getDocs(collection(db, "movies", seriesId, "episodes"));
+  const epData = epDoc.docs.find(d => d.id === epId)?.data();
+  if (!epData) return alert("Episode not found!");
+
+  document.getElementById("episodeId").value = epId;
+  document.getElementById("episodeSeriesId").value = seriesId;
+  document.getElementById("epNumber").value = epData.epNumber || "";
+  document.getElementById("epTitle").value = epData.title || "";
+  document.getElementById("epFileUrl").value = epData.fileUrl || "";
+  document.getElementById("epDescription").value = epData.description || "";
+  document.getElementById("epPoster").value = epData.poster || "";
+  document.getElementById("epRuntime").value = epData.runtime || "";
+
+  // ✅ restore season
+  if (document.getElementById("epSeason")) {
+    document.getElementById("epSeason").value = epData.season || "";
+  }
+  if (document.getElementById("newSeasonInput")) {
+    document.getElementById("newSeasonInput").value = "";
+  }
+};
+
+window.deleteEpisode = async (seriesId, epId) => {
+  if (!confirm("Delete this episode?")) return;
+  await deleteDoc(doc(db, "movies", seriesId, "episodes", epId));
+};
+
+window.closeModal = modalId => {
+  document.getElementById(modalId).style.display = "none";
+  if (typeof episodesUnsubscribe === "function") episodesUnsubscribe();
+};
+
+
+/* =======================================================
+   👤 USERS + DEVICE LIMIT + SUBSCRIPTION + LOGIN + ADMIN
+   ======================================================= */
+
+/* ================= DEVICE ID ================= */
+function getDeviceId() {
+  let id = localStorage.getItem("deviceId");
+  if (!id) {
+    id = "dev_" + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem("deviceId", id);
+  }
+  return id;
+}
+const deviceId = getDeviceId();
+
+/* ================= REGISTER USER ================= */
+registerForm.addEventListener("submit", async e => {
+  e.preventDefault();
+
+  const email = regEmail.value.trim();
+  const username = regUsername.value.trim();
+  const password = regPassword.value.trim();
+  const devicesAllowed = parseInt(regDevices.value) || 1;
+
+  if (!email || !username || password.length < 6)
+    return alert("Fill valid info and password min 6 chars");
+
+  const now = Date.now();
+  const subscriptionDays = 30;
+  const expiresAt = now + subscriptionDays * 24 * 60 * 60 * 1000;
+
+  try {
+    await addDoc(usersRef, {
+      email,
+      username,
+      password,
+      createdAt: now,
+      status: "Paid",
+      devicesAllowed,
+      activeDevices: [],
+      subscriptionExpiresAt: expiresAt
+    });
+    alert("✅ User registered!");
+    registerForm.reset();
+  } catch (err) {
+    console.error(err);
+    alert("Failed to register user.");
+  }
+});
+
+/* ================= DEVICE LIMIT ENFORCEMENT ================= */
+async function enforceDeviceLimit(user, allowForceLogout = false) {
+  const allowed = user.devicesAllowed || 1;
+  let active = (user.activeDevices || []).filter(d => typeof d === "string" && d.trim() !== "");
+
+  if (active.includes(deviceId)) return; // current device already active
+
+  if (active.length >= allowed) {
+    if (allowForceLogout) {
+      // Log out oldest device to free slot
+      const updatedDevices = active.slice(1);
+      await updateDoc(doc(db, "users", user.id), { activeDevices: [...updatedDevices, deviceId] });
+      return;
+    } else {
+      throw new Error("🚫 Device limit exceeded. Please upgrade for more devices.");
+    }
+  }
+
+  active.push(deviceId);
+  await updateDoc(doc(db, "users", user.id), { activeDevices: active });
+}
+
+/* ================= LOGIN FUNCTION ================= */
+async function loginUser(identifier, password) {
+  let q = query(usersRef, where("email", "==", identifier));
+  let snapshot = await getDocs(q);
+
+  if (snapshot.empty) {
+    q = query(usersRef, where("username", "==", identifier));
+    snapshot = await getDocs(q);
+    if (snapshot.empty) return alert("❌ User not found");
+  }
+
+  const userDoc = snapshot.docs[0];
+  const user = { id: userDoc.id, ...userDoc.data() };
+
+  if (user.password !== password) return alert("❌ Incorrect password");
+
+  if (Date.now() >= user.subscriptionExpiresAt) {
+    await updateDoc(doc(db, "users", user.id), { status: "Unpaid", activeDevices: [] });
+    return alert("❌ Your subscription has expired. Please renew.");
+  }
+
+  try {
+    await enforceDeviceLimit(user);
+  } catch (err) {
+    return alert(err.message);
+  }
+
+  currentUser = user;
+  saveCurrentUser();
+  watchUserStatus();
+
+  alert(`✅ Logged in successfully as ${user.username}`);
+  updateAuthUI();
+  closeModal('authModal');
+}
+
+/* ================= AUTO-EXPIRE USER ================= */
+async function autoExpireUser(user) {
+  if (!user.subscriptionExpiresAt) return user.status;
+
+  if (Date.now() >= user.subscriptionExpiresAt && user.status === "Paid") {
+    await updateDoc(doc(db, "users", user.id), {
+      status: "Unpaid",
+      activeDevices: []
+    });
+    return "Unpaid";
+  }
+  return user.status;
+}
+
+/* ================= COUNTDOWN TIMER ================= */
+function getCountdown(expiry) {
+  const diff = expiry - Date.now();
+  if (diff <= 0) return "❌ Expired";
+
+  const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+  const m = Math.floor((diff / (1000 * 60)) % 60);
+  return `⏳ Expires in ${d} days ${h} hrs ${m} mins`;
+}
+
+/* ================= RENDER USERS ================= */
+async function renderUsers(list) {
+  usersTable.innerHTML = "";
+
+  for (const u of list) {
+    const regDate = new Date(u.createdAt).toLocaleDateString();
+    const expiryDate = u.subscriptionExpiresAt ? new Date(u.subscriptionExpiresAt).toLocaleString() : "—";
+
+    const status = await autoExpireUser(u);
+    const countdown = u.subscriptionExpiresAt ? getCountdown(u.subscriptionExpiresAt) : "—";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${u.email}</td>
+      <td>${u.username}</td>
+      <td>${u.password}</td>
+      <td>${regDate}</td>
+      <td>${expiryDate}<br><small>${countdown}</small></td>
+      <td class="devices-cell"><input type="number" min="1" value="${u.devicesAllowed || 1}" style="width:60px" /></td>
+      <td style="color:${status === "Paid" ? "#00ff66" : "#ff4444"}">${status}</td>
+      <td class="actions">
+        <button class="small-btn edit">Edit</button>
+        <button class="small-btn reset">Reset PW</button>
+        <button class="small-btn extend">Extend</button>
+        <button class="small-btn toggle">Toggle</button>
+        <button class="small-btn delete">Delete</button>
+      </td>
+    `;
+    usersTable.appendChild(tr);
+
+    // Inline devices update
+    const devicesInput = tr.querySelector(".devices-cell input");
+    devicesInput.addEventListener("change", async () => {
+      let newDevices = parseInt(devicesInput.value);
+      if (!newDevices || newDevices < 1) {
+        devicesInput.value = u.devicesAllowed || 1;
+        return alert("Invalid device number");
+      }
+      await updateDoc(doc(db, "users", u.id), { devicesAllowed: newDevices });
+      alert(`✅ Devices allowed updated to ${newDevices}`);
+    });
+
+    // Buttons
+    tr.querySelector(".edit").addEventListener("click", () => editUser(u.id));
+    tr.querySelector(".reset").addEventListener("click", () => resetPassword(u.id));
+    tr.querySelector(".extend").addEventListener("click", () => extendSubscription(u.id));
+    tr.querySelector(".toggle").addEventListener("click", () => toggleStatus(u.id, status));
+    tr.querySelector(".delete").addEventListener("click", () => deleteUser(u.id));
+  }
+}
+
+/* ================= REAL-TIME LISTENER ================= */
+onSnapshot(query(usersRef, orderBy("createdAt", "desc")), snapshot => {
+  allUsers = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderUsers(allUsers);
+});
+
+/* ================= ADMIN FUNCTIONS ================= */
+window.resetPassword = async id => {
+  const newPw = prompt("Enter new password (min 6 chars):");
+  if (!newPw || newPw.length < 6) return alert("Password too short");
+  await updateDoc(doc(db, "users", id), { password: newPw });
+  alert("✅ Password reset");
+};
+
+window.deleteUser = async id => {
+  if (!confirm("Delete this user?")) return;
+  await deleteDoc(doc(db, "users", id));
+  alert("🗑 User deleted");
+};
+
+window.toggleStatus = async (id, currentStatus) => {
+  const newStatus = currentStatus === "Paid" ? "Unpaid" : "Paid";
+  await updateDoc(doc(db, "users", id), { status: newStatus });
+  alert(`✅ Status changed to ${newStatus}`);
+};
+
+window.extendSubscription = async id => {
+  let days = prompt("Extend subscription by how many days?", "30");
+  days = parseInt(days);
+  if (!days || days <= 0) return;
+
+  const ref = doc(db, "users", id);
+  const snap = await getDoc(ref);
+  const currentExpiry = snap.data().subscriptionExpiresAt || Date.now();
+
+  await updateDoc(ref, {
+    subscriptionExpiresAt: currentExpiry + days * 24 * 60 * 60 * 1000,
+    status: "Paid"
+  });
+  alert("✅ Subscription extended");
+};
+
+window.editUser = async id => {
+  const ref = doc(db, "users", id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return alert("User not found");
+
+  const user = snap.data();
+
+  let extraDays = prompt("Extend subscription by how many days? (0 for none)", "0");
+  extraDays = parseInt(extraDays);
+
+  const updates = {};
+  if (extraDays > 0) {
+    const currentExpiry = user.subscriptionExpiresAt || Date.now();
+    updates.subscriptionExpiresAt = currentExpiry + extraDays * 24 * 60 * 60 * 1000;
+    updates.status = "Paid";
+  }
+
+  await updateDoc(ref, updates);
+  alert("✅ User updated successfully");
+};
+
+/* ================= LOGOUT FUNCTIONS ================= */
+async function logoutUser(userId) {
+  const snap = await getDoc(doc(db, "users", userId));
+  const user = snap.data();
+  const updated = (user.activeDevices || []).filter(d => d !== deviceId);
+  await updateDoc(doc(db, "users", userId), { activeDevices: updated });
+}
+
+async function logoutOtherDevices(userId) {
+  await updateDoc(doc(db, "users", userId), { activeDevices: [deviceId] });
+  alert("✅ Other devices logged out. You can now log in on this device.");
+}
+
+/* ================= CAN PLAY VIDEO ================= */
+async function canPlayVideo(userId) {
+  const snap = await getDoc(doc(db, "users", userId));
+  const user = snap.data();
+  const active = user.activeDevices || [];
+
+  if (!active.includes(deviceId)) {
+    if (active.length >= user.devicesAllowed) {
+      alert("🚫 Device limit reached. Cannot play video. Upgrade subscription or logout from other devices.");
+      return false;
+    }
+    active.push(deviceId);
+    await updateDoc(doc(db, "users", userId), { activeDevices: active });
+  }
+  return true;
+}
+
+/* ================= LIVE COUNTDOWN ================= */
+setInterval(() => renderUsers(allUsers), 60000);
+
+
+
+// =======================================================================
+// ⭐⭐ TMDb FETCH SYSTEM (FULLY INTEGRATED) ⭐⭐
+// =======================================================================
+
+const TMDB_API_KEY = "4d2474df29f79bf9c784634d44137413";
+
+async function fetchAllTMDbContent() {
+  const PAGES = 2;
+
+  const endpoints = [
+    { type: "Movie", label: "Now Playing", baseUrl: "https://api.themoviedb.org/3/movie/now_playing" },
+    { type: "Movie", label: "Popular", baseUrl: "https://api.themoviedb.org/3/movie/popular" },
+    { type: "Series", label: "Popular", baseUrl: "https://api.themoviedb.org/3/tv/popular" },
+    { type: "Anime", label: "Popular", baseUrl: "https://api.themoviedb.org/3/discover/tv?with_original_language=ja&sort_by=popularity.desc" },
+    { type: "Animation", label: "Popular", baseUrl: "https://api.themoviedb.org/3/discover/movie?with_genres=16&sort_by=popularity.desc" }
+  ];
+
+  try {
+    const now = new Date();
+
+    // Get Genre Lists
+    const [movieGenresRes, tvGenresRes] = await Promise.all([
+      fetch(`https://api.themoviedb.org/3/genre/movie/list?api_key=${TMDB_API_KEY}&language=en-US`),
+      fetch(`https://api.themoviedb.org/3/genre/tv/list?api_key=${TMDB_API_KEY}&language=en-US`)
+    ]);
+
+    const movieGenres = (await movieGenresRes.json()).genres || [];
+    const tvGenres    = (await tvGenresRes.json()).genres || [];
+
+    const genreMap = {};
+    [...movieGenres, ...tvGenres].forEach(g => (genreMap[g.id] = g.name));
+
+    // LOOP ENDPOINTS
+    for (const endpoint of endpoints) {
+      console.log(`🔄 Fetching ${endpoint.label} ${endpoint.type}s...`);
+
+      for (let page = 1; page <= PAGES; page++) {
+        const url = endpoint.baseUrl.includes("?")
+          ? `${endpoint.baseUrl}&api_key=${TMDB_API_KEY}&language=en-US&page=${page}`
+          : `${endpoint.baseUrl}?api_key=${TMDB_API_KEY}&language=en-US&page=${page}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        const results = Array.isArray(data.results) ? data.results : [data];
+
+        for (const item of results) {
+          if (!item || (!item.title && !item.name)) continue;
+
+          const title = item.title || item.name;
+
+          const releaseDateStr = item.release_date || item.first_air_date;
+          if (!releaseDateStr) continue;
+
+          const releaseDate = new Date(releaseDateStr);
+          if (isNaN(releaseDate)) continue;
+          if (releaseDate > now) continue;
+
+          const year = releaseDate.getFullYear();
+          const month = releaseDate.getMonth() + 1;
+          const day = releaseDate.getDate();
+
+          if (!item.poster_path) continue;
+          const poster = `https://image.tmdb.org/t/p/w500${item.poster_path}`;
+
+          const rating = item.vote_average || null;
+          const description = item.overview || "";
+          const genreNames = (item.genre_ids || []).map(id => genreMap[id]).filter(Boolean);
+
+          // Check if movie exists
+          const q = query(moviesRef, where("title", "==", title));
+          const existingSnap = await getDocs(q);
+
+          if (!existingSnap.empty) {
+            for (const docSnap of existingSnap.docs) {
+              await updateDoc(doc(db, "movies", docSnap.id), {
+                year, releaseDate: releaseDateStr, month, day,
+                type: endpoint.type, description, rating, poster,
+                genres: genreNames, category: endpoint.label,
+                updatedAt: Date.now()
+              });
+            }
+          } else {
+            await addDoc(moviesRef, {
+              title, year, month, day, releaseDate: releaseDateStr,
+              type: endpoint.type, genres: genreNames, poster,
+              trailer: "", fileUrl: "",
+              description, rating, source: "tmdb",
+              category: endpoint.label,
+              createdAt: Date.now()
+            });
+          }
+        }
+      }
+
+      console.log(`✅ Completed ${endpoint.label} ${endpoint.type}s!`);
+    }
+
+    console.log("🎉 TMDB fetch completed.");
+
+  } catch (e) {
+    console.error("TMDb fetch error:", e);
+  }
+}
+
+
+async function autoRunWeeklyTMDbFetch() {
+  const lastRun = localStorage.getItem("tmdb_last_run");
+  const now     = Date.now();
+  const oneWeek = 7 * 24 * 60 * 60 * 1000;
+
+  if (!lastRun || now - lastRun > oneWeek) {
+    await fetchAllTMDbContent();
+    localStorage.setItem("tmdb_last_run", now);
+  } else {
+    const daysLeft = Math.ceil((oneWeek - (now - lastRun)) / (24*60*60*1000));
+    console.log(`TMDb auto-fetch next run in ~${daysLeft} days`);
+  }
+}
+
+autoRunWeeklyTMDbFetch();
+setInterval(autoRunWeeklyTMDbFetch, 12 * 60 * 60 * 1000); // Every 12 hours
+
+
+
+
+</script>
+
+</body>
+</html>
+
+
