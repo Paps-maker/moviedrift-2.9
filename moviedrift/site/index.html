@@ -938,7 +938,7 @@ a.download-link:hover,
   background: linear-gradient(90deg, #00ff80, #00d5ff);
   border: none;
   color: #000;
-  padding: 6px 12;           /* tall height */
+  padding: 6px 12px;           /* tall height */
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
@@ -2890,7 +2890,7 @@ mpesaPayBtn.onclick = async () => {
   }
   if (!currentUser) { openAuthModal(); return; }
 
-  if (MPESA_INITIATE_URL.includes("PASTE_YOUR_CLOUD_FUNCTION_URL_HERE")) {
+   if (MPESA_INITIATE_URL.includes("https://moviedrift-2-9.onrender.com/initiateStkPush")) {
     alert(
       "⚠ M-Pesa payments aren't wired up yet.\n\n" +
       "Deploy the Cloud Functions in /functions and paste the deployed URL " +

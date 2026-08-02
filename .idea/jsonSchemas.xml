@@ -3,6 +3,22 @@
   <component name="JsonSchemaMappingsProjectConfiguration">
     <state>
       <map>
+        <entry key="Firebase">
+          <value>
+            <SchemaInfo>
+              <option name="name" value="Firebase" />
+              <option name="relativePathToSchema" value="https://raw.githubusercontent.com/firebase/firebase-tools/master/schema/firebase-config.json" />
+              <option name="applicationDefined" value="true" />
+              <option name="patterns">
+                <list>
+                  <Item>
+                    <option name="path" value="moviedrift/firebase.json" />
+                  </Item>
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
         <entry key="Foxx Manifest">
           <value>
             <SchemaInfo>
