@@ -36,7 +36,7 @@ const MPESA_SHORTCODE = "174379"; // Default Sandbox Shortcode (Lipa Na M-Pesa O
 const MPESA_BASE_URL = "https://sandbox.safaricom.co.ke";
 
 // Leave this as a temporary placeholder until we deploy!
-const MPESA_CALLBACK_URL = "https://us-central1-placeholder.cloudfunctions.net/mpesaCallback";
+const MPESA_CALLBACK_URL = "https://moviedrift-2-9.onrender.com/mpesaCallback";
 
 /* ---------------- Helpers ---------------- */
 function timestampNow() {

@@ -29,8 +29,8 @@ const MPESA_BASE_URL = "https://sandbox.safaricom.co.ke";
 
 // Set automatically on Render or fallback
 const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || "http://localhost:3000";
-const MPESA_CALLBACK_URL = `${RENDER_EXTERNAL_URL}/mpesaCallback`;
-
+const BASE_URL = process.env.RENDER_EXTERNAL_URL || "https://moviedrift-2-9.onrender.com";
+const MPESA_CALLBACK_URL = `${BASE_URL}/mpesaCallback`;
 /* Helpers */
 function timestampNow() {
     const d = new Date();
